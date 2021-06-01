@@ -26,7 +26,7 @@ if __name__ == '__main__':
         format="%(asctime)s [%(name)s] [%(funcName)s] [%(levelname)s]  %(message)s",
         handlers=[
             logging.StreamHandler(sys.stderr),
-            logging.FileHandler("{0}/{1}.log".format("./", "splistutils"))
+            logging.FileHandler("{0}/{1}.log".format("./", "rtsgame"))
         ]
     )
     
