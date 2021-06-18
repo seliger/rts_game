@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List
 from pathlib import Path
 import logging
+import random
 
 import pygame
 from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_MINUS, K_EQUALS, K_ESCAPE
@@ -26,16 +27,16 @@ def init_screen(width: int, height: int) -> pygame.Surface:
 
 # make loading images a little easier
 def load_image(filename: str) -> pygame.Surface:
-	log.info("Preparing to load image: {}".format(str(config.RESOURCE_DIR.joinpath(filename))))
-	return pygame.image.load(str(config.RESOURCE_DIR.joinpath(filename)))
+    log.info("Preparing to load image: {}".format(str(config.RESOURCE_DIR.joinpath(filename))))
+    return pygame.image.load(str(config.RESOURCE_DIR.joinpath(filename)))
 
 
 class GameConfig:
-	def __init__(self):
+    def __init__(self):
 
-		# define configuration variables here
-		log.info("Current working directory is {}".format(self.CURRENT_DIR))
-		log.info("Resource directory is {}".format(self.RESOURCE_DIR))
+        # define configuration variables here
+        log.info("Current working directory is {}".format(self.CURRENT_DIR))
+        log.info("Resource directory is {}".format(self.RESOURCE_DIR))
 
 class Character (pygame.sprite.Sprite):
     """Character Class - A playable character/person in the game.
@@ -55,14 +56,15 @@ class Character (pygame.sprite.Sprite):
     collides with level walls.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name="chewie_00") -> None:
         super().__init__()
-        self.image = load_image(Path('sprites').joinpath('chewie_00.png')).convert_alpha()
+        self.name = name
+        self.image = load_image(Path('sprites').joinpath(name + '.png')).convert_alpha()
         self.velocity = [0, 0]
         self._position = [0.0, 0.0]
         self._old_position = self.position
         self.rect = self.image.get_rect()
-        self.feet = pygame.Rect(0, 0, self.rect.width * 0.5, 8)
+        self.feet = pygame.Rect(0, 0, self.rect.width * 0.5, 15)
 
     @property
     def position(self) -> List[float]:
@@ -94,23 +96,38 @@ class GameEngine:
     Finally, it uses a pyscroll group to render the map and Hero.
     """
 
-    map_path = config.RESOURCE_DIR.joinpath("main_map.tmx")
+    map_path = config.RESOURCE_DIR
 
-    def __init__(self, screen: pygame.Surface) -> None:
+    def __init__(self, screen: pygame.Surface, map="main_map.tmx") -> None:
         self.screen = screen
 
         # true while running
         self.running = False
 
         # load data from pytmx
-        tmx_data = load_pygame(self.map_path)
+        tmx_data = load_pygame(self.map_path.joinpath(map))   
 
         # setup level geometry with simple pygame rects, loaded from pytmx
         self.walls = []
-        from pprint import pprint
-        for obj in tmx_data.objects:
-        	pprint(obj)
-        	self.walls.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
+        self.portals = []
+        self.portal_objs = []
+
+        # Initalize a list for all of our non-player characters (NPCs)
+        self.characters = []
+
+        # Sift through the object layers we are interested in and save 
+        # those off in different lists so we can react to them later on.
+        for layer in tmx_data.layers:
+            if layer.name == 'Walls':
+                for obj in layer:
+                    self.walls.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
+            elif layer.name == 'Portals':
+                for obj in layer:
+                    self.portals.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
+                    self.portal_objs.append(obj)
+            elif layer.name == 'Background':
+                self.background = layer.image
+                print(self.background)
 
         # create new data source for pyscroll
         map_data = pyscroll.data.TiledMapData(tmx_data)
@@ -127,15 +144,34 @@ class GameEngine:
         # layer for sprites as 2
         self.group = PyscrollGroup(map_layer=self.map_layer, default_layer=2)
 
+        # Instantiate our "hero" character
         self.hero = Character()
+        
+        # Characters
+        characters = [
+            {"name": "chewie_04", "x": 6500, "y": 6500},
+            {"name": "chewie_13", "x": 7500, "y": 7500},
+        ]
+
+        # Instantiate our NPCs
+        self.add_characters(characters)
 
         # put the hero in the center of the map
         self.hero.position = self.map_layer.map_rect.center
         self.hero._position[0] += 200
         self.hero._position[1] += 400
 
+        for character in self.characters:
+            self.group.add(character)
+
         # add our hero to the group
         self.group.add(self.hero)
+
+    def add_characters(self, characters):
+        for character in characters:
+            self.characters.append(Character(name=character['name']))
+            self.characters[-1]._position[0] = character['x']
+            self.characters[-1]._position[1] = character['y']
 
     def draw(self) -> None:
 
@@ -200,8 +236,16 @@ class GameEngine:
         # sprite must have a rect called feet, and move_back method,
         # otherwise this will fail
         for sprite in self.group.sprites():
+            # Handle obstacle collisions
             if sprite.feet.collidelist(self.walls) > -1:
                 sprite.move_back(dt)
+
+            # Handle portal collisions
+            portal_collision = sprite.feet.collidelist(self.portals)
+            if portal_collision > -1:
+                print(self.portal_objs[portal_collision].name)
+                portal = GameEngine(self.screen, 'plains_portal.tmx')
+                portal.run()
 
     def run(self):
         """Run the game loop"""

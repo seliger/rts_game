@@ -39,4 +39,3 @@ def run():
 		pass
 	finally:
 		pygame.quit()
-
