@@ -59,6 +59,7 @@ class Character (pygame.sprite.Sprite):
     def __init__(self, name="chewie_00") -> None:
         super().__init__()
         self.name = name
+        self.moving_direction = 0
         self.image = load_image(Path('sprites').joinpath(name + '.png')).convert_alpha()
         self.velocity = [0, 0]
         self._position = [0.0, 0.0]
@@ -149,17 +150,17 @@ class GameEngine:
         
         # Characters
         characters = [
-            {"name": "chewie_04", "x": 6500, "y": 6500},
-            {"name": "chewie_13", "x": 7500, "y": 7500},
+            {"name": "chewie_04", "x": 2240, "y": 10044},
+            {"name": "chewie_13", "x": 4416, "y": 9432},
         ]
 
         # Instantiate our NPCs
         self.add_characters(characters)
 
         # put the hero in the center of the map
-        self.hero.position = self.map_layer.map_rect.center
-        self.hero._position[0] += 200
-        self.hero._position[1] += 400
+        # self.hero.position = self.map_layer.map_rect.center
+        self.hero._position[0] = 2300
+        self.hero._position[1] = 10000
 
         for character in self.characters:
             self.group.add(character)
@@ -168,8 +169,12 @@ class GameEngine:
         self.group.add(self.hero)
 
     def add_characters(self, characters):
+        log.info('Entering add_characters()')
         for character in characters:
+            # Instantiate a new NPC in the characters list
             self.characters.append(Character(name=character['name']))
+
+            # Configure the character based on additional attributes
             self.characters[-1]._position[0] = character['x']
             self.characters[-1]._position[1] = character['y']
 
@@ -180,6 +185,32 @@ class GameEngine:
 
         # draw the map and all sprites
         self.group.draw(self.screen)
+
+    def move_characters(self) -> None:
+        for character in self.characters:
+            # Roll the dice to see if we move or not
+            # If we move, randomly set a direction
+            if random.randint(0, 100) < 65:
+                character.moving_direction = 0
+            else:
+                character.moving_direction = random.choice([1, 2, 3, 4])
+
+            # Randomly set or unset the trajectory of the sprite based
+            # on the previously set direction
+            if random.randint(0, 150) == 0:
+                if character.moving_direction == 4:
+                    character.velocity[0] = config.MOVE_SPEED
+                elif character.moving_direction == 3:
+                    character.velocity[0] = -config.MOVE_SPEED  
+                else:
+                    character.velocity[0] = 0
+
+                if character.moving_direction == 2:
+                    character.velocity[1] = config.MOVE_SPEED
+                elif character.moving_direction == 1:
+                    character.velocity[1] = -config.MOVE_SPEED
+                else:
+                    character.velocity[1] = 0
 
     def handle_input(self) -> None:
         """Handle pygame input events"""
@@ -242,10 +273,10 @@ class GameEngine:
 
             # Handle portal collisions
             portal_collision = sprite.feet.collidelist(self.portals)
-            if portal_collision > -1:
-                print(self.portal_objs[portal_collision].name)
-                portal = GameEngine(self.screen, 'plains_portal.tmx')
-                portal.run()
+            # if portal_collision > -1:
+            #     print(self.portal_objs[portal_collision].name)
+            #     portal = GameEngine(self.screen, 'plains_portal.tmx')
+            #     portal.run()
 
     def run(self):
         """Run the game loop"""
@@ -261,7 +292,10 @@ class GameEngine:
                 dt = clock.tick() / 1000.0
                 times.append(clock.get_fps())
 
+                # possible move_characters()?
                 self.handle_input()
+                self.move_characters()
+                # possible move_characters()? -- pick one
                 self.update(dt)
                 self.draw()
                 pygame.display.flip()
