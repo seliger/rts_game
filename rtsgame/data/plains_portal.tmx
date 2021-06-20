@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.5" tiledversion="1.6.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="25" tileheight="30" infinite="0" nextlayerid="6" nextobjectid="3">
- <imagelayer id="2" name="Background">
-  <image source="tiles/background.png" width="800" height="600"/>
- </imagelayer>
- <layer id="5" name="Tile Layer 1" width="32" height="20" opacity="0">
-  <data encoding="base64" compression="zlib">
-   eJztwQEBAAAAgiD/r25IQAEA8GQKAAAB
-  </data>
+<map version="1.5" tiledversion="1.7.0" orientation="orthogonal" renderorder="right-down" width="1" height="1" tilewidth="800" tileheight="600" infinite="0" nextlayerid="4" nextobjectid="5">
+ <tileset firstgid="1" source="background_plains.tsx"/>
+ <layer id="1" name="Background" width="1" height="1">
+  <data encoding="csv">
+1
+</data>
  </layer>
- <objectgroup id="3" name="Walls">
-  <object id="1" name="sky" x="1.77636e-15" y="0" width="798.303" height="376.326"/>
+ <objectgroup id="2" name="Walls">
+  <object id="1" name="Sky" x="0.25" y="1" width="799.625" height="383.125"/>
+  <object id="2" x="794.875" y="384.5" width="5" height="215.375"/>
+ </objectgroup>
+ <objectgroup id="3" name="Exits">
+  <object id="4" x="0.125" y="384.375" width="5" height="215.625"/>
  </objectgroup>
 </map>

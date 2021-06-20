@@ -99,7 +99,7 @@ class GameEngine:
 
     map_path = config.RESOURCE_DIR
 
-    def __init__(self, screen: pygame.Surface, map="main_map.tmx") -> None:
+    def __init__(self, screen: pygame.Surface, map="plains_portal.tmx") -> None:
         self.screen = screen
 
         # true while running
@@ -126,18 +126,15 @@ class GameEngine:
                 for obj in layer:
                     self.portals.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
                     self.portal_objs.append(obj)
-            elif layer.name == 'Background':
-                self.background = layer.image
-                print(self.background)
 
         # create new data source for pyscroll
         map_data = pyscroll.data.TiledMapData(tmx_data)
 
         # create new renderer (camera)
         self.map_layer = pyscroll.BufferedRenderer(
-            map_data, screen.get_size(), clamp_camera=False, tall_sprites=1
+            map_data, screen.get_size(), clamp_camera=True, tall_sprites=1
         )
-        self.map_layer.zoom = 2
+        self.map_layer.zoom = 1
 
         # pyscroll supports layered rendering.  our map has 3 'under' layers
         # layers begin with 0, so the layers are 0, 1, and 2.
@@ -154,13 +151,17 @@ class GameEngine:
             {"name": "chewie_13", "x": 4416, "y": 9432},
         ]
 
+        characters = []
+
         # Instantiate our NPCs
         self.add_characters(characters)
 
         # put the hero in the center of the map
-        # self.hero.position = self.map_layer.map_rect.center
-        self.hero._position[0] = 2300
-        self.hero._position[1] = 10000
+        self.hero.position = self.map_layer.map_rect.center
+        self.hero._position[0] += 0
+        self.hero._position[1] += 100
+        # self.hero._position[0] = 2300
+        # self.hero._position[1] = 10000
 
         for character in self.characters:
             self.group.add(character)
