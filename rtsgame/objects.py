@@ -4,6 +4,7 @@ from typing import List
 from pathlib import Path
 import logging
 import random
+import glob
 
 import pygame
 from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_MINUS, K_EQUALS, K_ESCAPE
@@ -89,31 +90,37 @@ class Character (pygame.sprite.Sprite):
         self.feet.midbottom = self.rect.midbottom
 
 
-class GameEngine:
-    """This class is a basic game.
+class GameMap:
+    """ This is the map class. 
 
-    This class will load data, create a pyscroll group, a hero object.
-    It also reads input and moves the Hero around the map.
-    Finally, it uses a pyscroll group to render the map and Hero.
+    The GameMap class will allow us to load and track state for multiple maps.
+    GameEngine will load and switch between the different GameMap instances
+    throughout normal game play.
+
+    We will track three different map constructs:
+
+    * Zones - An area to contain an NPC
+    * Walls - Areas that NPCs or our main player cannot go beyond
+    * Exits - Areas that when crossed, take you to other locations
     """
 
     map_path = config.RESOURCE_DIR
 
-    def __init__(self, screen: pygame.Surface, map="plains_portal.tmx") -> None:
-        self.screen = screen
+    def __init__(self, map, screen, zoom=2, clamp_camera=False, characters=None, hero=None, hero_x=None, hero_y=None):
 
-        # true while running
-        self.running = False
+        self.screen = screen
 
         # load data from pytmx
         tmx_data = load_pygame(self.map_path.joinpath(map))   
 
         # setup level geometry with simple pygame rects, loaded from pytmx
         self.walls = []
-        self.portals = []
-        self.portal_objs = []
+        self.exits = []
+        self.exit_objs = []
+        self.zones = []
+        self.zone_objs = []
 
-        # Initalize a list for all of our non-player characters (NPCs)
+        # Initialize a container for any NPCs that may be on a given map
         self.characters = []
 
         # Sift through the object layers we are interested in and save 
@@ -122,19 +129,24 @@ class GameEngine:
             if layer.name == 'Walls':
                 for obj in layer:
                     self.walls.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
-            elif layer.name == 'Portals':
+            elif layer.name == 'Exits':
                 for obj in layer:
-                    self.portals.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
-                    self.portal_objs.append(obj)
+                    self.exits.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
+                    self.exit_objs.append(obj)
+            elif layer.name == 'Zones':
+                for obj in layer:
+                    self.zones.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
+                    self.zone_objs.append(obj)
 
         # create new data source for pyscroll
         map_data = pyscroll.data.TiledMapData(tmx_data)
 
         # create new renderer (camera)
         self.map_layer = pyscroll.BufferedRenderer(
-            map_data, screen.get_size(), clamp_camera=True, tall_sprites=1
+            map_data, screen.get_size(), clamp_camera=clamp_camera, tall_sprites=1
         )
-        self.map_layer.zoom = 1
+
+        self.map_layer.zoom = zoom
 
         # pyscroll supports layered rendering.  our map has 3 'under' layers
         # layers begin with 0, so the layers are 0, 1, and 2.
@@ -143,34 +155,43 @@ class GameEngine:
         self.group = PyscrollGroup(map_layer=self.map_layer, default_layer=2)
 
         # Instantiate our "hero" character
-        self.hero = Character()
-        
-        # Characters
-        characters = [
-            {"name": "chewie_04", "x": 2240, "y": 10044},
-            {"name": "chewie_13", "x": 4416, "y": 9432},
-        ]
+        self.hero = hero if hero else Character()
 
-        characters = []
-
-        # Instantiate our NPCs
-        self.add_characters(characters)
-
-        # put the hero in the center of the map
-        self.hero.position = self.map_layer.map_rect.center
-        self.hero._position[0] += 0
-        self.hero._position[1] += 100
-        # self.hero._position[0] = 2300
-        # self.hero._position[1] = 10000
-
-        for character in self.characters:
-            self.group.add(character)
+        if hero_x and hero_y:
+            # Use the provided values to position our hero
+            self.hero._position[0] = hero_x
+            self.hero._position[1] = hero_y
+        else:
+            # put the hero in the center of the map
+            self.hero.position = self.map_layer.map_rect.center
 
         # add our hero to the group
         self.group.add(self.hero)
 
+        # Instantiate our NPCs if we have any
+        if characters:
+            self.add_characters(characters)
+
+            for character in self.characters:
+                self.group.add(character)
+
+    @property
+    def zoom(self):
+        return self.map_layer.zoom
+
+    @zoom.setter
+    def zoom(self, value: int):
+        self.map_layer.zoom = value
+
+    @property
+    def clamp_camera(self):
+        return self.map_data.clamp_camera
+    
+    @clamp_camera.setter
+    def clamp_camera(self, value: bool):
+        self.map_layer.clamp_camera = value
+    
     def add_characters(self, characters):
-        log.info('Entering add_characters()')
         for character in characters:
             # Instantiate a new NPC in the characters list
             self.characters.append(Character(name=character['name']))
@@ -178,6 +199,8 @@ class GameEngine:
             # Configure the character based on additional attributes
             self.characters[-1]._position[0] = character['x']
             self.characters[-1]._position[1] = character['y']
+
+            self.group.add(self.characters[-1])
 
     def draw(self) -> None:
 
@@ -213,6 +236,84 @@ class GameEngine:
                 else:
                     character.velocity[1] = 0
 
+    def update(self, dt, current_map) -> str:
+
+        map_name = current_map
+
+        """Tasks that occur over time should be handled here"""
+        self.group.update(dt)
+
+        # check if the sprite's feet are colliding with wall
+        # sprite must have a rect called feet, and move_back method,
+        # otherwise this will fail
+        for sprite in self.group.sprites():
+            # Handle obstacle collisions
+            if sprite.feet.collidelist(self.walls) > -1:
+                sprite.move_back(dt)
+
+            # Handle exit collisions
+            exit_collision = sprite.feet.collidelist(self.exits)
+            # Detected an exit collision and we're the hero
+            if exit_collision > -1 and sprite.name == 'chewie_00':
+                map_name = self.exit_objs[exit_collision].name
+
+        return map_name
+
+
+class GameEngine:
+    """This class is a basic game.
+
+    This class will load data, create a pyscroll group, a hero object.
+    It also reads input and moves the Hero around the map.
+    Finally, it uses a pyscroll group to render the map and Hero.
+    """
+
+    map_path = config.RESOURCE_DIR
+
+    def __init__(self, screen: pygame.Surface, map="main_map.tmx") -> None:
+        self.screen = screen
+
+        # true while running
+        self.running = False
+
+        # Characters
+        characters = [
+            {"name": "chewie_04", "x": 2240, "y": 10044},
+            {"name": "chewie_13", "x": 4416, "y": 9432},
+        ]
+
+        # Get a list of our maps
+        maps = glob.glob('**/*.tmx', recursive=True)
+
+        # Define a dictionary for our maps
+        self.maps = {}
+        self.map_names = []
+
+        # Load the maps
+        for map in maps:
+            # Strip off the extraneous path information
+            map_name = Path(map).name
+            self.map_names.append(map_name)
+
+            # Load the map into our dictionary
+            self.maps[map_name] = GameMap(map_name, screen, hero=Character())
+
+            # Load the maps with additional details
+            if map_name == 'main_map.tmx':
+                # Main map gets characters
+                self.maps[map_name].add_characters(characters)
+                # self.maps[map_name].hero = Character()
+                self.maps[map_name].hero._position[0] = 2200
+                self.maps[map_name].hero._position[1] = 10000
+            else:
+                self.maps[map_name].hero._position[0] = 100
+                self.maps[map_name].hero._position[1] = 400
+                self.maps[map_name].zoom = 1
+                self.maps[map_name].clamp_camera = True
+
+            # Set our inital map
+            self.current_map = 'main_map.tmx'
+
     def handle_input(self) -> None:
         """Handle pygame input events"""
         poll = pygame.event.poll
@@ -229,17 +330,17 @@ class GameEngine:
                     break
 
                 elif event.key == K_EQUALS:
-                    self.map_layer.zoom += 0.25
+                    self.maps[self.current_map].map_layer.zoom += 0.25
 
                 elif event.key == K_MINUS:
-                    value = self.map_layer.zoom - 0.25
+                    value = self.maps[self.current_map].map_layer.zoom - 0.25
                     if value > 0:
-                        self.map_layer.zoom = value
+                        self.maps[self.current_map].map_layer.zoom = value
 
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
                 self.screen = init_screen(event.w, event.h)
-                self.map_layer.set_size((event.w, event.h))
+                self.maps[self.current_map].map_layer.set_size((event.w, event.h))
 
             event = poll()
 
@@ -247,37 +348,18 @@ class GameEngine:
         # but is much easier to use.
         pressed = pygame.key.get_pressed()
         if pressed[K_UP]:
-            self.hero.velocity[1] = -config.MOVE_SPEED
+            self.maps[self.current_map].hero.velocity[1] = -config.MOVE_SPEED
         elif pressed[K_DOWN]:
-            self.hero.velocity[1] = config.MOVE_SPEED
+            self.maps[self.current_map].hero.velocity[1] = config.MOVE_SPEED
         else:
-            self.hero.velocity[1] = 0
+            self.maps[self.current_map].hero.velocity[1] = 0
 
         if pressed[K_LEFT]:
-            self.hero.velocity[0] = -config.MOVE_SPEED
+            self.maps[self.current_map].hero.velocity[0] = -config.MOVE_SPEED
         elif pressed[K_RIGHT]:
-            self.hero.velocity[0] = config.MOVE_SPEED
+            self.maps[self.current_map].hero.velocity[0] = config.MOVE_SPEED
         else:
-            self.hero.velocity[0] = 0
-
-    def update(self, dt):
-        """Tasks that occur over time should be handled here"""
-        self.group.update(dt)
-
-        # check if the sprite's feet are colliding with wall
-        # sprite must have a rect called feet, and move_back method,
-        # otherwise this will fail
-        for sprite in self.group.sprites():
-            # Handle obstacle collisions
-            if sprite.feet.collidelist(self.walls) > -1:
-                sprite.move_back(dt)
-
-            # Handle portal collisions
-            portal_collision = sprite.feet.collidelist(self.portals)
-            # if portal_collision > -1:
-            #     print(self.portal_objs[portal_collision].name)
-            #     portal = GameEngine(self.screen, 'plains_portal.tmx')
-            #     portal.run()
+            self.maps[self.current_map].hero.velocity[0] = 0
 
     def run(self):
         """Run the game loop"""
@@ -293,12 +375,10 @@ class GameEngine:
                 dt = clock.tick() / 1000.0
                 times.append(clock.get_fps())
 
-                # possible move_characters()?
                 self.handle_input()
-                self.move_characters()
-                # possible move_characters()? -- pick one
-                self.update(dt)
-                self.draw()
+                self.maps[self.current_map].move_characters()
+                self.current_map = self.maps[self.current_map].update(dt, self.current_map)
+                self.maps[self.current_map].draw()
                 pygame.display.flip()
 
         except KeyboardInterrupt:
