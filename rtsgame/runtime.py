@@ -24,18 +24,18 @@ def init_screen(width: int, height: int) -> pygame.Surface:
 
 
 def run():
-	log.info("Entering the runtime.")
+    log.info("Entering the runtime.")
 
-	pygame.init()
-	pygame.font.init()
-	pygame.display.set_caption("Real Time Strategy (rtsgame)")
+    pygame.init()
+    pygame.font.init()
+    pygame.display.set_caption("Real Time Strategy (rtsgame)")
 
-	screen = init_screen(800, 600)
+    screen = init_screen(800, 600)
 
-	try:
-		engine = objects.GameEngine(screen)
-		engine.run()
-	except KeyboardInterrupt:
-		pass
-	finally:
-		pygame.quit()
+    try:
+        engine = objects.GameEngine(screen)
+        engine.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pygame.quit()
