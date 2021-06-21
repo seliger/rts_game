@@ -9,6 +9,8 @@ import glob
 import pygame
 from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_MINUS, K_EQUALS, K_ESCAPE
 from pygame.locals import KEYDOWN, VIDEORESIZE, QUIT
+
+import pytmx
 from pytmx.util_pygame import load_pygame
 
 import pyscroll
@@ -119,6 +121,7 @@ class GameMap:
         self.exit_objs = []
         self.zones = []
         self.zone_objs = []
+        self.hero_start_postion = None
 
         # Initialize a container for any NPCs that may be on a given map
         self.characters = []
@@ -137,6 +140,10 @@ class GameMap:
                 for obj in layer:
                     self.zones.append(pygame.Rect(obj.x, obj.y, obj.width, obj.height))
                     self.zone_objs.append(obj)
+            elif layer.name == 'Hero Start Position':
+                for obj in layer:
+                    self.hero_start_postion = (obj.x, obj.y)
+                    print(self.hero_start_postion)
 
         # create new data source for pyscroll
         map_data = pyscroll.data.TiledMapData(tmx_data)
@@ -255,6 +262,13 @@ class GameMap:
             exit_collision = sprite.feet.collidelist(self.exits)
             # Detected an exit collision and we're the hero
             if exit_collision > -1 and sprite.name == 'chewie_00':
+                all_collisions = self.exits + self.walls
+                while sprite.feet.collidelist(all_collisions) > -1:
+                    current_collision = sprite.feet.collidelist(all_collisions)
+                    sprite._position[0] = all_collisions[current_collision].center[0] + ((all_collisions[current_collision].centerx - all_collisions[current_collision].left) * 1.5 * random.choice([-1, 1]))
+                    sprite._position[1] = all_collisions[current_collision].center[1] + ((all_collisions[current_collision].centery - all_collisions[current_collision].top) * 1.5 * random.choice([-1, 1]))
+                    sprite.update(dt)
+
                 map_name = self.exit_objs[exit_collision].name
 
         return map_name
@@ -302,7 +316,6 @@ class GameEngine:
             if map_name == 'main_map.tmx':
                 # Main map gets characters
                 self.maps[map_name].add_characters(characters)
-                # self.maps[map_name].hero = Character()
                 self.maps[map_name].hero._position[0] = 2200
                 self.maps[map_name].hero._position[1] = 10000
             else:
@@ -377,7 +390,15 @@ class GameEngine:
 
                 self.handle_input()
                 self.maps[self.current_map].move_characters()
-                self.current_map = self.maps[self.current_map].update(dt, self.current_map)
+                new_map = self.maps[self.current_map].update(dt, self.current_map)
+                if new_map != self.current_map:
+                    if self.maps[new_map].hero_start_postion:
+                        print(self.maps[new_map].hero_start_postion)
+                        self.maps[new_map].hero._position[0] = self.maps[new_map].hero_start_postion[0]
+                        self.maps[new_map].hero._position[1] = self.maps[new_map].hero_start_postion[1]
+
+                    self.current_map = new_map
+
                 self.maps[self.current_map].draw()
                 pygame.display.flip()
 

@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.5" tiledversion="1.7.0" orientation="orthogonal" renderorder="right-down" width="1" height="1" tilewidth="800" tileheight="600" infinite="0" nextlayerid="4" nextobjectid="6">
+<map version="1.5" tiledversion="1.7.0" orientation="orthogonal" renderorder="right-down" width="1" height="1" tilewidth="800" tileheight="600" infinite="0" nextlayerid="5" nextobjectid="7">
  <tileset firstgid="1" source="background_plains.tsx"/>
  <layer id="1" name="Background" width="1" height="1">
   <data encoding="csv">
 1
 </data>
  </layer>
+ <objectgroup id="4" name="Hero Start Position">
+  <object id="6" name="Hero Start" x="130.789" y="420.212">
+   <point/>
+  </object>
+ </objectgroup>
  <objectgroup id="2" name="Walls">
   <object id="1" name="Sky" x="0.25" y="1" width="799.625" height="383.125"/>
   <object id="2" x="794.875" y="384.5" width="5" height="215.375"/>
