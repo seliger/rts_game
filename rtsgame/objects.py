@@ -41,6 +41,7 @@ class GameConfig:
         log.info("Current working directory is {}".format(self.CURRENT_DIR))
         log.info("Resource directory is {}".format(self.RESOURCE_DIR))
 
+
 class Character (pygame.sprite.Sprite):
     """Character Class - A playable character/person in the game.
 
@@ -143,7 +144,6 @@ class GameMap:
             elif layer.name == 'Hero Start Position':
                 for obj in layer:
                     self.hero_start_postion = (obj.x, obj.y)
-                    print(self.hero_start_postion)
 
         # create new data source for pyscroll
         map_data = pyscroll.data.TiledMapData(tmx_data)
