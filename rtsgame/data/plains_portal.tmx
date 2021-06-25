@@ -6,8 +6,8 @@
 1
 </data>
  </layer>
-  <objectgroup id="4" name="Hero Start Position">
-  <object id="6" name="Hero Start" x="130.789" y="420.212">
+ <objectgroup id="4" name="Hero Start Position">
+  <object id="6" name="Hero Start" x="107.456" y="424.212">
    <point/>
   </object>
  </objectgroup>

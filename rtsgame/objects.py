@@ -319,8 +319,8 @@ class GameEngine:
                 self.maps[map_name].hero._position[0] = 2200
                 self.maps[map_name].hero._position[1] = 10000
             else:
-                self.maps[map_name].hero._position[0] = 100
-                self.maps[map_name].hero._position[1] = 400
+                self.maps[map_name].hero._position[0] = self.maps[map_name].hero_start_postion[0]
+                self.maps[map_name].hero._position[1] = self.maps[map_name].hero_start_postion[1]
                 self.maps[map_name].zoom = 1
                 self.maps[map_name].clamp_camera = True
 
@@ -390,6 +390,7 @@ class GameEngine:
 
                 self.handle_input()
                 self.maps[self.current_map].move_characters()
+                
                 new_map = self.maps[self.current_map].update(dt, self.current_map)
                 if new_map != self.current_map:
                     if self.maps[new_map].hero_start_postion:
