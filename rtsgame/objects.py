@@ -389,6 +389,10 @@ class GameEngine:
                     if value > 0:
                         self.maps[self.current_map].map_layer.zoom = value
 
+                elif event.key == K_SPACE:
+                    # Flip the talking bit
+                    self.maps[self.current_map].hero.talking = not self.maps[self.current_map].hero.talking
+
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
                 self.screen = init_screen(event.w, event.h)
@@ -399,10 +403,6 @@ class GameEngine:
         # using get_pressed is slightly less accurate than testing for events
         # but is much easier to use.
         pressed = pygame.key.get_pressed()
-
-        if pressed[K_SPACE]:
-            # Flip the talking bit
-            self.maps[self.current_map].hero.talking = not self.maps[self.current_map].hero.talking
 
         if pressed[K_UP]:
             self.maps[self.current_map].hero.velocity[1] = -config.MOVE_SPEED
