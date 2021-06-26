@@ -7,7 +7,7 @@ import random
 import glob
 
 import pygame
-from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_MINUS, K_EQUALS, K_ESCAPE
+from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_MINUS, K_EQUALS, K_ESCAPE, K_SPACE
 from pygame.locals import KEYDOWN, VIDEORESIZE, QUIT
 
 import pytmx
@@ -70,6 +70,16 @@ class Character (pygame.sprite.Sprite):
         self._old_position = self.position
         self.rect = self.image.get_rect()
         self.feet = pygame.Rect(0, 0, self.rect.width * 0.5, 15)
+
+        self._talking = False
+
+    @property
+    def talking(self) -> bool:
+        return self._talking
+
+    @talking.setter
+    def talking(self, value: bool) -> None:
+        self._talking = value
 
     @property
     def position(self) -> List[float]:
@@ -217,31 +227,53 @@ class GameMap:
         # draw the map and all sprites
         self.group.draw(self.screen)
 
+        # Draw the dialog box if we need one
+        if self.hero.talking:
+            dialog = self.text_speech('arialnarrow.ttf', 30, 'Lorem isum dolor umit', (255, 255, 255), (0, 0, 0), 800/2, 400/2, False)
+            self.screen.blit(dialog[0], dialog[1])
+
+    def text_speech(self, font: str, size: int, text: str, color, background, x, y, bold: bool):
+        font = pygame.font.SysFont(font, size)
+        font.set_bold(bold)
+        textSurf = font.render(text, True, color).convert_alpha()
+        textSize = textSurf.get_size()   
+        bubbleSurf = pygame.Surface((textSize[0]*2., textSize[1]*2))
+        bubbleRect = bubbleSurf.get_rect()
+        bubbleSurf.fill(background)
+        bubbleSurf.blit(textSurf, textSurf.get_rect(center=bubbleRect.center))
+        bubbleRect.center = (x, y)
+        return (bubbleSurf, bubbleRect)
+
     def move_characters(self) -> None:
+
         for character in self.characters:
-            # Roll the dice to see if we move or not
-            # If we move, randomly set a direction
-            if random.randint(0, 100) < 65:
-                character.moving_direction = 0
-            else:
-                character.moving_direction = random.choice([1, 2, 3, 4])
-
-            # Randomly set or unset the trajectory of the sprite based
-            # on the previously set direction
-            if random.randint(0, 150) == 0:
-                if character.moving_direction == 4:
-                    character.velocity[0] = config.MOVE_SPEED
-                elif character.moving_direction == 3:
-                    character.velocity[0] = -config.MOVE_SPEED  
+            # If we are touching the player, we don't want to move so we can
+            # give the player a chance to decide if they wish to interact with
+            # the NPC
+            if not character.rect.colliderect(self.hero.rect):
+                # Roll the dice to see if we move or not
+                # If we move, randomly set a direction
+                if random.randint(0, 100) < 65:
+                    character.moving_direction = 0
                 else:
-                    character.velocity[0] = 0
+                    character.moving_direction = random.choice([1, 2, 3, 4])
 
-                if character.moving_direction == 2:
-                    character.velocity[1] = config.MOVE_SPEED
-                elif character.moving_direction == 1:
-                    character.velocity[1] = -config.MOVE_SPEED
-                else:
-                    character.velocity[1] = 0
+                # Randomly set or unset the trajectory of the sprite based
+                # on the previously set direction
+                if random.randint(0, 150) == 0:
+                    if character.moving_direction == 4:
+                        character.velocity[0] = config.MOVE_SPEED
+                    elif character.moving_direction == 3:
+                        character.velocity[0] = -config.MOVE_SPEED  
+                    else:
+                        character.velocity[0] = 0
+
+                    if character.moving_direction == 2:
+                        character.velocity[1] = config.MOVE_SPEED
+                    elif character.moving_direction == 1:
+                        character.velocity[1] = -config.MOVE_SPEED
+                    else:
+                        character.velocity[1] = 0
 
     def update(self, dt, current_map) -> str:
 
@@ -254,22 +286,29 @@ class GameMap:
         # sprite must have a rect called feet, and move_back method,
         # otherwise this will fail
         for sprite in self.group.sprites():
-            # Handle obstacle collisions
+            # Handle obstacle collisions for all sprites
             if sprite.feet.collidelist(self.walls) > -1:
                 sprite.move_back(dt)
 
-            # Handle exit collisions
-            exit_collision = sprite.feet.collidelist(self.exits)
-            # Detected an exit collision and we're the hero
-            if exit_collision > -1 and sprite.name == 'chewie_00':
-                all_collisions = self.exits + self.walls
-                while sprite.feet.collidelist(all_collisions) > -1:
-                    current_collision = sprite.feet.collidelist(all_collisions)
-                    sprite._position[0] = all_collisions[current_collision].center[0] + ((all_collisions[current_collision].centerx - all_collisions[current_collision].left) * 1.5 * random.choice([-1, 1]))
-                    sprite._position[1] = all_collisions[current_collision].center[1] + ((all_collisions[current_collision].centery - all_collisions[current_collision].top) * 1.5 * random.choice([-1, 1]))
-                    sprite.update(dt)
+            if sprite.name == 'chewie_00':
+                # Handle cases for the main player
 
-                map_name = self.exit_objs[exit_collision].name
+                # Handle exit collisions
+                exit_collision = sprite.feet.collidelist(self.exits)
+                # Detected an exit collision and we're the hero
+                if exit_collision > -1:
+                    print('Exit collision value: {}. \t Exit portal type: {}'.format(exit_collision, self.exit_objs[exit_collision].type))
+                    all_collisions = self.exits + self.walls
+                    while sprite.feet.collidelist(all_collisions) > -1:
+                        current_collision = sprite.feet.collidelist(all_collisions)
+                        sprite._position[0] = all_collisions[current_collision].center[0] + ((all_collisions[current_collision].centerx - all_collisions[current_collision].left) * 1.5 * random.choice([-1, 1]))
+                        sprite._position[1] = all_collisions[current_collision].center[1] + ((all_collisions[current_collision].centery - all_collisions[current_collision].top) * 1.5 * random.choice([-1, 1]))
+                        sprite.update(dt)
+
+                    map_name = self.exit_objs[exit_collision].name
+
+            else:
+                pass
 
         return map_name
 
@@ -360,6 +399,11 @@ class GameEngine:
         # using get_pressed is slightly less accurate than testing for events
         # but is much easier to use.
         pressed = pygame.key.get_pressed()
+
+        if pressed[K_SPACE]:
+            # Flip the talking bit
+            self.maps[self.current_map].hero.talking = not self.maps[self.current_map].hero.talking
+
         if pressed[K_UP]:
             self.maps[self.current_map].hero.velocity[1] = -config.MOVE_SPEED
         elif pressed[K_DOWN]:
@@ -390,7 +434,7 @@ class GameEngine:
 
                 self.handle_input()
                 self.maps[self.current_map].move_characters()
-                
+
                 new_map = self.maps[self.current_map].update(dt, self.current_map)
                 if new_map != self.current_map:
                     if self.maps[new_map].hero_start_postion:
