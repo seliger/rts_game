@@ -72,6 +72,8 @@ class Character (pygame.sprite.Sprite):
         self.feet = pygame.Rect(0, 0, self.rect.width * 0.5, 15)
 
         self._talking = False
+        self._talkingwho = None
+        self._dialogs = {}
 
     @property
     def talking(self) -> bool:
@@ -80,6 +82,26 @@ class Character (pygame.sprite.Sprite):
     @talking.setter
     def talking(self, value: bool) -> None:
         self._talking = value
+
+    @property
+    def talkingwho(self) -> str:
+        return self._talkingwho
+
+    @talkingwho.setter
+    def talkingwho(self, value: str) -> None:
+        self._talkingwho = value
+
+    @property
+    def dialogs(self) -> str:
+        return self._dialogs
+
+    @dialogs.setter
+    def dialogs(self, key: str, value: str) -> None:
+        self._dialogs[key] = value
+
+    @dialogs.setter
+    def dialogs(self, value: dict) -> None:
+        self._dialogs = value
 
     @property
     def position(self) -> List[float]:
@@ -134,9 +156,20 @@ class GameMap:
         self.zone_objs = []
         self.hero_start_postion = None
 
+        # Placeholder for any dialog that needs to be displayed
+        self._dialog = None
+
         # Initialize a container for any NPCs that may be on a given map
         self.characters = []
 
+        @property
+        def dialog(self) -> str:
+            return self._dialog
+
+        @dialog.setter
+        def dialog(self, value) -> None:
+            self._dialog = value
+        
         # Sift through the object layers we are interested in and save 
         # those off in different lists so we can react to them later on.
         for layer in tmx_data.layers:
@@ -216,6 +249,7 @@ class GameMap:
             # Configure the character based on additional attributes
             self.characters[-1]._position[0] = character['x']
             self.characters[-1]._position[1] = character['y']
+            self.characters[-1].dialogs = character['dialogs']
 
             self.group.add(self.characters[-1])
 
@@ -228,9 +262,10 @@ class GameMap:
         self.group.draw(self.screen)
 
         # Draw the dialog box if we need one
-        if self.hero.talking:
-            dialog = self.text_speech('arialnarrow.ttf', 30, 'Lorem isum dolor umit', (255, 255, 255), (0, 0, 0), 800/2, 400/2, False)
-            self.screen.blit(dialog[0], dialog[1])
+        if self._dialog:
+            print(self._dialog)
+            d = self.text_speech('Script', 30, self._dialog, (255, 255, 255), (0, 0, 0), 800/2, 400/2, False)
+            self.screen.blit(d[0], d[1])
 
     def text_speech(self, font: str, size: int, text: str, color, background, x, y, bold: bool):
         font = pygame.font.SysFont(font, size)
@@ -285,6 +320,10 @@ class GameMap:
         # check if the sprite's feet are colliding with wall
         # sprite must have a rect called feet, and move_back method,
         # otherwise this will fail
+
+        # Temporary placeholder for dialog
+        dialog = None
+
         for sprite in self.group.sprites():
             # Handle obstacle collisions for all sprites
             if sprite.feet.collidelist(self.walls) > -1:
@@ -308,7 +347,16 @@ class GameMap:
                     map_name = self.exit_objs[exit_collision].name
 
             else:
-                pass
+                if self.hero.talking:
+                    if sprite.rect.colliderect(self.hero.rect):
+                        self.hero.talkingwho = sprite.name
+                        dialog = sprite.dialogs['hello']
+                
+        if self.hero.talking and dialog:
+            self._dialog = dialog
+        else:
+            self.hero.talking = False
+            self.hero.talkingwho = None
 
         return map_name
 
@@ -331,8 +379,26 @@ class GameEngine:
 
         # Characters
         characters = [
-            {"name": "chewie_04", "x": 2240, "y": 10044},
-            {"name": "chewie_13", "x": 4416, "y": 9432},
+            {
+                "name": "chewie_04", 
+                "x": 2240, 
+                "y": 10044,
+                "dialogs": {
+                    "hello": "Hello world!",
+                    "salutation": "What's going on?",
+                    "bye": "Goodbye"
+                }
+            },
+            {
+                "name": "chewie_13", 
+                "x": 4416, 
+                "y": 9432,
+                "dialogs": {
+                    "hello": "Bon jour!",
+                    "salutation": "Comment allez-vous?",
+                    "bye": "Au revoir!"
+                }
+            },
         ]
 
         # Get a list of our maps
@@ -392,6 +458,10 @@ class GameEngine:
                 elif event.key == K_SPACE:
                     # Flip the talking bit
                     self.maps[self.current_map].hero.talking = not self.maps[self.current_map].hero.talking
+                    if not self.maps[self.current_map].hero.talking:
+                        print('poof!')
+                        self.maps[self.current_map].hero.talkingwho = None
+                        self.maps[self.current_map]._dialog = None
 
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
