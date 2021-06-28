@@ -42,6 +42,82 @@ class GameConfig:
         log.info("Resource directory is {}".format(self.RESOURCE_DIR))
 
 
+class Item (pygame.sprite.Sprite):
+
+    def __init__(self, name, graphic_file, x, y):
+        super().__init__()
+        self.name = name
+        self.image = load_image(graphic_file).convert_alpha()
+        self._position = [x, y]
+        self.rect = self.image.get_rect()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def visible(self) -> str:
+        return self._visible
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value
+
+    @visible.setter
+    def visible(self, value: bool) -> None:
+        self._name = value
+
+
+class Quest ():
+    
+    def __init__(self, name, location, item):
+        self._name = name
+        self._location = location
+        self._item = item
+        self._status = None
+        self._future_status = None
+
+    @property
+    def future_status(self) -> int:
+        return self._future_status
+    
+    @future_status.setter
+    def future_status(self, value: int) -> None:
+        self._future_status = value
+
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def location(self) -> str:
+        return self._location
+    
+    @property
+    def item(self) -> Item:
+        return self._item
+    
+    @property
+    def status(self) -> bool:
+        return self._status
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value
+
+    @location.setter
+    def location(self, value: str) -> None:
+        self.location = value
+
+    @item.setter
+    def item(self, value: Item) -> None:
+        self._item = value
+
+    @status.setter
+    def status(self, value: int) -> None:
+        self._status = value
+
+
 class Character (pygame.sprite.Sprite):
     """Character Class - A playable character/person in the game.
 
@@ -74,6 +150,16 @@ class Character (pygame.sprite.Sprite):
         self._talking = False
         self._talkingwho = None
         self._dialogs = {}
+
+        self._quest = None
+
+    @property
+    def quest(self) -> str:
+        return self._quest
+
+    @quest.setter
+    def quest(self, value: str) -> None:
+        self._quest = value
 
     @property
     def talking(self) -> bool:
@@ -263,7 +349,6 @@ class GameMap:
 
         # Draw the dialog box if we need one
         if self._dialog:
-            print(self._dialog)
             d = self.text_speech('Script', 30, self._dialog, (255, 255, 255), (0, 0, 0), 800/2, 400/2, False)
             self.screen.blit(d[0], d[1])
 
@@ -347,15 +432,28 @@ class GameMap:
                     map_name = self.exit_objs[exit_collision].name
 
             else:
-                if self.hero.talking:
+                if self.hero.talking and not dialog:
                     if sprite.rect.colliderect(self.hero.rect):
                         self.hero.talkingwho = sprite.name
-                        dialog = sprite.dialogs['hello']
-                
+
+                        quest_name = sprite.name + '_quest'
+
+                        if not self.hero.quest:
+                            dialog = sprite.dialogs['hello']
+                            self.hero.quest = quest_name
+                            GameEngine.quests[self.hero.quest].future_status = 1
+                        else:
+                            if self.hero.quest == quest_name:
+                                if GameEngine.quests[self.hero.quest].status == 1:
+                                    dialog = sprite.dialogs['what']
+                            else:
+                                dialog = sprite.dialogs['goaway']
+
         if self.hero.talking and dialog:
             self._dialog = dialog
+            dialog = None
         else:
-            self.hero.talking = False
+            # self.hero.talking = False
             self.hero.talkingwho = None
 
         return map_name
@@ -371,6 +469,8 @@ class GameEngine:
 
     map_path = config.RESOURCE_DIR
 
+    quests = {}
+
     def __init__(self, screen: pygame.Surface, map="main_map.tmx") -> None:
         self.screen = screen
 
@@ -385,7 +485,9 @@ class GameEngine:
                 "y": 10044,
                 "dialogs": {
                     "hello": "Hello world!",
+                    "what": 'Go find my thing dummy.',
                     "salutation": "What's going on?",
+                    'goaway': 'You look busy. Find me later.',
                     "bye": "Goodbye"
                 }
             },
@@ -395,11 +497,16 @@ class GameEngine:
                 "y": 9432,
                 "dialogs": {
                     "hello": "Bon jour!",
+                    "what": 'Rawrr rrr warrwrrr.',
                     "salutation": "Comment allez-vous?",
+                    'goaway': 'Find me later dude.',
                     "bye": "Au revoir!"
                 }
             },
         ]
+
+        GameEngine.quests['chewie_04_quest'] = Quest('chewie04_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 400, 400))
+        GameEngine.quests['chewie_13_quest'] = Quest('chewie13_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 400, 400))
 
         # Get a list of our maps
         maps = glob.glob('**/*.tmx', recursive=True)
@@ -459,9 +566,10 @@ class GameEngine:
                     # Flip the talking bit
                     self.maps[self.current_map].hero.talking = not self.maps[self.current_map].hero.talking
                     if not self.maps[self.current_map].hero.talking:
-                        print('poof!')
                         self.maps[self.current_map].hero.talkingwho = None
                         self.maps[self.current_map]._dialog = None
+                        ##
+                        GameEngine.quests[self.maps[self.current_map].hero.quest].status = GameEngine.quests[self.maps[self.current_map].hero.quest].future_status
 
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
@@ -508,7 +616,6 @@ class GameEngine:
                 new_map = self.maps[self.current_map].update(dt, self.current_map)
                 if new_map != self.current_map:
                     if self.maps[new_map].hero_start_postion:
-                        print(self.maps[new_map].hero_start_postion)
                         self.maps[new_map].hero._position[0] = self.maps[new_map].hero_start_postion[0]
                         self.maps[new_map].hero._position[1] = self.maps[new_map].hero_start_postion[1]
 
