@@ -67,6 +67,9 @@ class Item (pygame.sprite.Sprite):
     def visible(self, value: bool) -> None:
         self._name = value
 
+    def update(self, dt: float):
+        self.rect.topleft = self._position
+
 
 class Quest ():
     
@@ -136,6 +139,8 @@ class Character (pygame.sprite.Sprite):
     collides with level walls.
     """
 
+    quest = None
+
     def __init__(self, name="chewie_00") -> None:
         super().__init__()
         self.name = name
@@ -151,15 +156,15 @@ class Character (pygame.sprite.Sprite):
         self._talkingwho = None
         self._dialogs = {}
 
-        self._quest = None
+        # self._quest = None
 
-    @property
-    def quest(self) -> str:
-        return self._quest
+    # @property
+    # def quest(self) -> str:
+    #     return self._quest
 
-    @quest.setter
-    def quest(self, value: str) -> None:
-        self._quest = value
+    # @quest.setter
+    # def quest(self, value: str) -> None:
+    #     self._quest = value
 
     @property
     def talking(self) -> bool:
@@ -327,6 +332,12 @@ class GameMap:
     def clamp_camera(self, value: bool):
         self.map_layer.clamp_camera = value
     
+    def get_sprites(self) -> List:
+        return [sprite for sprite in self.group]
+
+    def get_sprite_names(self) -> List:
+        return [sprite.name for sprite in self.group]
+
     def add_characters(self, characters):
         for character in characters:
             # Instantiate a new NPC in the characters list
@@ -410,44 +421,57 @@ class GameMap:
         dialog = None
 
         for sprite in self.group.sprites():
-            # Handle obstacle collisions for all sprites
-            if sprite.feet.collidelist(self.walls) > -1:
-                sprite.move_back(dt)
+            # Handle obstacle collisions for all Character sprites (those with feet)
+            if hasattr(sprite, 'feet'):
+                if sprite.feet.collidelist(self.walls) > -1:
+                    sprite.move_back(dt)
 
-            if sprite.name == 'chewie_00':
-                # Handle cases for the main player
 
-                # Handle exit collisions
-                exit_collision = sprite.feet.collidelist(self.exits)
-                # Detected an exit collision and we're the hero
-                if exit_collision > -1:
-                    print('Exit collision value: {}. \t Exit portal type: {}'.format(exit_collision, self.exit_objs[exit_collision].type))
-                    all_collisions = self.exits + self.walls
-                    while sprite.feet.collidelist(all_collisions) > -1:
-                        current_collision = sprite.feet.collidelist(all_collisions)
-                        sprite._position[0] = all_collisions[current_collision].center[0] + ((all_collisions[current_collision].centerx - all_collisions[current_collision].left) * 1.5 * random.choice([-1, 1]))
-                        sprite._position[1] = all_collisions[current_collision].center[1] + ((all_collisions[current_collision].centery - all_collisions[current_collision].top) * 1.5 * random.choice([-1, 1]))
-                        sprite.update(dt)
+                if sprite.name == 'chewie_00':
+                    # Handle cases for the main player
 
-                    map_name = self.exit_objs[exit_collision].name
+                    # Handle exit collisions
+                    exit_collision = sprite.feet.collidelist(self.exits)
+                    # Detected an exit collision and we're the hero
+                    if exit_collision > -1:
+                        print('Exit collision value: {}. \t Exit portal type: {}'.format(exit_collision, self.exit_objs[exit_collision].type))
+                        all_collisions = self.exits + self.walls
+                        while sprite.feet.collidelist(all_collisions) > -1:
+                            current_collision = sprite.feet.collidelist(all_collisions)
+                            sprite._position[0] = all_collisions[current_collision].center[0] + ((all_collisions[current_collision].centerx - all_collisions[current_collision].left) * 1.5 * random.choice([-1, 1]))
+                            sprite._position[1] = all_collisions[current_collision].center[1] + ((all_collisions[current_collision].centery - all_collisions[current_collision].top) * 1.5 * random.choice([-1, 1]))
+                            sprite.update(dt)
 
-            else:
-                if self.hero.talking and not dialog:
-                    if sprite.rect.colliderect(self.hero.rect):
-                        self.hero.talkingwho = sprite.name
+                        map_name = self.exit_objs[exit_collision].name
 
-                        quest_name = sprite.name + '_quest'
+                else:
+                    if self.hero.talking and not dialog:
+                        if sprite.rect.colliderect(self.hero.rect):
+                            self.hero.talkingwho = sprite.name
 
-                        if not self.hero.quest:
-                            dialog = sprite.dialogs['hello']
-                            self.hero.quest = quest_name
-                            GameEngine.quests[self.hero.quest].future_status = 1
-                        else:
-                            if self.hero.quest == quest_name:
-                                if GameEngine.quests[self.hero.quest].status == 1:
-                                    dialog = sprite.dialogs['what']
+                            quest_name = sprite.name + '_quest'
+
+                            if not Character.quest:
+                                dialog = sprite.dialogs['hello']
+                                Character.quest = quest_name
+                                GameEngine.quests[Character.quest].future_status = 1
                             else:
-                                dialog = sprite.dialogs['goaway']
+                                if Character.quest == quest_name:
+                                    if GameEngine.quests[Character.quest].status == 1:
+                                        dialog = sprite.dialogs['what']
+                                else:
+                                    dialog = sprite.dialogs['goaway']
+
+            # Handle obstacle collisions for items
+            else:
+                if sprite.rect.colliderect(self.hero.rect):
+                    print('colliding! {}'.format(Character.quest))
+                    # If a quest is active, and its state is 1
+                    if Character.quest:
+                        if GameEngine.quests[Character.quest].status == 1:
+                            print('triggered!')
+                            GameEngine.quests[Character.quest].future_status = 2
+                            GameEngine.quests[Character.quest].status = 2
 
         if self.hero.talking and dialog:
             self._dialog = dialog
@@ -505,8 +529,8 @@ class GameEngine:
             },
         ]
 
-        GameEngine.quests['chewie_04_quest'] = Quest('chewie04_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 400, 400))
-        GameEngine.quests['chewie_13_quest'] = Quest('chewie13_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 400, 400))
+        GameEngine.quests['chewie_04_quest'] = Quest('chewie04_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 500, 450))
+        GameEngine.quests['chewie_13_quest'] = Quest('chewie13_quest', 'plains_portal.tmx', Item('Green Light Saber', 'light_saber.png', 500, 450))
 
         # Get a list of our maps
         maps = glob.glob('**/*.tmx', recursive=True)
@@ -620,6 +644,18 @@ class GameEngine:
                         self.maps[new_map].hero._position[1] = self.maps[new_map].hero_start_postion[1]
 
                     self.current_map = new_map
+
+                current_quest = self.maps['main_map.tmx'].hero.quest
+                if current_quest:
+                    if GameEngine.quests[current_quest].status:
+                        if GameEngine.quests[current_quest].status == GameEngine.quests[current_quest].future_status:
+                            if GameEngine.quests[current_quest].status == 1:
+                                if not GameEngine.quests[current_quest].item.name in self.maps[GameEngine.quests[current_quest].location].get_sprite_names():
+                                    self.maps[GameEngine.quests[current_quest].location].group.add(GameEngine.quests[current_quest].item)
+                            else:
+                                if GameEngine.quests[current_quest].item.name in self.maps[GameEngine.quests[current_quest].location].get_sprite_names():
+                                    GameEngine.quests[current_quest].item.kill()
+
 
                 self.maps[self.current_map].draw()
                 pygame.display.flip()
