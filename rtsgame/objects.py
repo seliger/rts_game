@@ -349,18 +349,29 @@ class GameMap:
 
         # Draw the dialog box if we need one
         if self._dialog:
-            d = self.text_speech('Script', 30, self._dialog, (255, 255, 255), (0, 0, 0), 800/2, 400/2, False)
+            d = self.text_speech('Script', 30, self._dialog, (255, 255, 255), (0, 0, 0), self.screen.get_width()/2, 400/2, False)
             self.screen.blit(d[0], d[1])
 
     def text_speech(self, font: str, size: int, text: str, color, background, x, y, bold: bool):
         font = pygame.font.SysFont(font, size)
         font.set_bold(bold)
-        textSurf = font.render(text, True, color).convert_alpha()
-        textSize = textSurf.get_size()   
-        bubbleSurf = pygame.Surface((textSize[0]*2., textSize[1]*2))
+
+        lines = text.splitlines()
+        text_surfaces = []
+        for i, line in enumerate(lines):
+            text_surfaces.append(font.render(line, True, color).convert_alpha())
+
+        # Compute the width and height required for the bubble surface
+        textWidth = max([surf.get_size()[0] for surf in text_surfaces])
+        textHeight = sum([surf.get_size()[1] for surf in text_surfaces])
+
+        padding_factor = 2
+        bubbleSurf = pygame.Surface((textWidth * padding_factor, textHeight * padding_factor))
         bubbleRect = bubbleSurf.get_rect()
         bubbleSurf.fill(background)
-        bubbleSurf.blit(textSurf, textSurf.get_rect(center=bubbleRect.center))
+        for j, text_surface in enumerate(text_surfaces):
+            bubbleSurf.blit(text_surface, text_surface.get_rect(centerx=bubbleRect.centerx, top=(textHeight / padding_factor) + (j * (textHeight / (i + 1)))))
+
         bubbleRect.center = (x, y)
         return (bubbleSurf, bubbleRect)
 
