@@ -41,7 +41,6 @@ class GameConfig:
         log.info("Current working directory is {}".format(self.CURRENT_DIR))
         log.info("Resource directory is {}".format(self.RESOURCE_DIR))
 
-
 class Item (pygame.sprite.Sprite):
 
     def __init__(self, name, graphic_file, x, y):
@@ -155,16 +154,6 @@ class Character (pygame.sprite.Sprite):
         self._talking = False
         self._talkingwho = None
         self._dialogs = {}
-
-        # self._quest = None
-
-    # @property
-    # def quest(self) -> str:
-    #     return self._quest
-
-    # @quest.setter
-    # def quest(self, value: str) -> None:
-    #     self._quest = value
 
     @property
     def talking(self) -> bool:
@@ -426,7 +415,6 @@ class GameMap:
                 if sprite.feet.collidelist(self.walls) > -1:
                     sprite.move_back(dt)
 
-
                 if sprite.name == 'chewie_00':
                     # Handle cases for the main player
 
@@ -434,7 +422,6 @@ class GameMap:
                     exit_collision = sprite.feet.collidelist(self.exits)
                     # Detected an exit collision and we're the hero
                     if exit_collision > -1:
-                        print('Exit collision value: {}. \t Exit portal type: {}'.format(exit_collision, self.exit_objs[exit_collision].type))
                         all_collisions = self.exits + self.walls
                         while sprite.feet.collidelist(all_collisions) > -1:
                             current_collision = sprite.feet.collidelist(all_collisions)
@@ -451,7 +438,7 @@ class GameMap:
 
                             quest_name = sprite.name + '_quest'
 
-                            if not Character.quest:
+                            if not Character.quest and not GameEngine.quests[quest_name].status:
                                 dialog = sprite.dialogs['hello']
                                 Character.quest = quest_name
                                 GameEngine.quests[Character.quest].future_status = 1
@@ -459,26 +446,27 @@ class GameMap:
                                 if Character.quest == quest_name:
                                     if GameEngine.quests[Character.quest].status == 1:
                                         dialog = sprite.dialogs['what']
+                                    elif GameEngine.quests[Character.quest].status == 2:
+                                        dialog = sprite.dialogs['bye']
+                                        GameEngine.quests[Character.quest].future_status = 3
                                 else:
-                                    dialog = sprite.dialogs['goaway']
+                                    if GameEngine.quests[quest_name].status == 3:
+                                        dialog = sprite.dialogs['srslygoaway']
+                                    else:
+                                        dialog = sprite.dialogs['goaway']
 
             # Handle obstacle collisions for items
             else:
                 if sprite.rect.colliderect(self.hero.rect):
-                    print('colliding! {}'.format(Character.quest))
                     # If a quest is active, and its state is 1
                     if Character.quest:
                         if GameEngine.quests[Character.quest].status == 1:
-                            print('triggered!')
                             GameEngine.quests[Character.quest].future_status = 2
                             GameEngine.quests[Character.quest].status = 2
 
         if self.hero.talking and dialog:
             self._dialog = dialog
             dialog = None
-        else:
-            # self.hero.talking = False
-            self.hero.talkingwho = None
 
         return map_name
 
@@ -508,11 +496,12 @@ class GameEngine:
                 "x": 2240, 
                 "y": 10044,
                 "dialogs": {
-                    "hello": "Hello world!",
+                    "hello": "Lorem ipsum dolor sit amet,\n consectetur adipiscing elit,\n sed do eiusmod tempor incididunt ut labore\n et dolore magna aliqua. ",
                     "what": 'Go find my thing dummy.',
                     "salutation": "What's going on?",
                     'goaway': 'You look busy. Find me later.',
-                    "bye": "Goodbye"
+                    "bye": "Goodbye",
+                    'srslygoaway': "I'm done of looking at you. Leave."
                 }
             },
             {
@@ -520,11 +509,12 @@ class GameEngine:
                 "x": 4416, 
                 "y": 9432,
                 "dialogs": {
-                    "hello": "Bon jour!",
+                    "hello": "Bon \n jour!",
                     "what": 'Rawrr rrr warrwrrr.',
                     "salutation": "Comment allez-vous?",
                     'goaway': 'Find me later dude.',
-                    "bye": "Au revoir!"
+                    "bye": "Au revoir!",
+                    'srslygoaway': "ARRRRRGHHH!!!"
                 }
             },
         ]
@@ -593,7 +583,10 @@ class GameEngine:
                         self.maps[self.current_map].hero.talkingwho = None
                         self.maps[self.current_map]._dialog = None
                         ##
-                        GameEngine.quests[self.maps[self.current_map].hero.quest].status = GameEngine.quests[self.maps[self.current_map].hero.quest].future_status
+                        if Character.quest:
+                            GameEngine.quests[Character.quest].status = GameEngine.quests[Character.quest].future_status
+                            if GameEngine.quests[Character.quest].status == 3:
+                                Character.quest = None
 
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
@@ -655,7 +648,6 @@ class GameEngine:
                             else:
                                 if GameEngine.quests[current_quest].item.name in self.maps[GameEngine.quests[current_quest].location].get_sprite_names():
                                     GameEngine.quests[current_quest].item.kill()
-
 
                 self.maps[self.current_map].draw()
                 pygame.display.flip()
